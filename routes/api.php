@@ -1,15 +1,11 @@
 <?php
 
-// routes/api.php
-// This file defines all API routes
-// All routes here automatically get the prefix '/api/'
-// So 'register' becomes '/api/register'
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Import our AuthController
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ProductController;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,27 +36,27 @@ Route::post('/login', [AuthController::class, 'login']);
 | Route::middleware('auth:sanctum') means:
 | "Before running these routes, check if the user is authenticated"
 */
+// PROTECTED (ADMIN ONLY)
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // GET /api/profile
     // Returns the logged-in user's profile data
     Route::get('/profile', [AuthController::class, 'profile']);
-    
+
     // POST /api/logout
     // Logs the user out by deleting their token
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // ADMIN-ONLY PRODUCT ROUTES
+    Route::post('/products', [ProductController::class, 'store']);
+    Route::put('/products/{id}', [ProductController::class, 'update']);
+    Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 });
 
 /*
 |--------------------------------------------------------------------------
-| ROUTE SUMMARY
+| PUBLIC PRODUCT ROUTES
 |--------------------------------------------------------------------------
-| 
-| METHOD  | URL              | AUTH REQUIRED? | PURPOSE
-| --------|------------------|----------------|------------------
-| POST    | /api/register    | No             | Create new user
-| POST    | /api/login       | No             | Login user
-| GET     | /api/profile     | Yes (token)    | Get user profile
-| POST    | /api/logout      | Yes (token)    | Logout user
-|
 */
+Route::get('/products', [ProductController::class, 'index']);
+Route::get('/products/{id}', [ProductController::class, 'show']);
