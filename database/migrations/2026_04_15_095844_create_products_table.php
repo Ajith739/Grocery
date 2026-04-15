@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('product_code')->unique(); // p001
             $table->string('name');
-            $table->string('category');
+            $table->unsignedBigInteger('category_id');
             $table->integer('price');
             $table->integer('originalPrice')->nullable();
             $table->string('weight')->nullable();
@@ -24,7 +24,9 @@ return new class extends Migration
             $table->string('brand')->nullable();
             $table->integer('discount')->default(0);
             $table->string('bgColor')->nullable();
+            $table->integer('quantity')->default(0);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

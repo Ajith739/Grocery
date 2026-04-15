@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Exception;
+use App\Http\Resources\ProductResource;
 
 class ProductController extends Controller
 {
@@ -15,18 +16,17 @@ class ProductController extends Controller
         try {
             $query = Product::query();
 
-            if ($request->has('category')) {
-                $query->where('category', $request->category);
+            if ($request->has('category_id')) {
+                $query->where('category_id', $request->category_id);
             }
 
-            $products = $query->get();
+            $products = $query->with('category')->get();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Products fetched successfully',
-                'data' => $products
+                'data' => ProductResource::collection($products)
             ], 200);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -40,7 +40,7 @@ class ProductController extends Controller
     public function show($id)
     {
         try {
-            $product = Product::find($id);
+            $product = Product::with('category')->find($id);
 
             if (!$product) {
                 return response()->json([
@@ -52,9 +52,8 @@ class ProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product fetched successfully',
-                'data' => $product
-            ], 200);
-
+                'data' => new ProductResource($product)
+            ]);
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -70,20 +69,21 @@ class ProductController extends Controller
         try {
             // dd($request->all());
 
-             $validated = $request->validate([
-        'name' => 'required|string',
-        'category' => 'required|string',
-        'price' => 'required|numeric',
-        'originalPrice' => 'nullable|numeric',
-        'weight' => 'nullable|string',
-        'rating' => 'nullable|numeric',
-        'reviews' => 'nullable|integer',
-        'brand' => 'nullable|string',
-        'discount' => 'nullable|integer',
-        'bgColor' => 'nullable|string',
-    ]);
+            $validated = $request->validate([
+                'name' => 'required|string',
+                'category_id' => 'required|exists:categories,id',
+                'price' => 'required|numeric',
+                'originalPrice' => 'nullable|numeric',
+                'weight' => 'nullable|string',
+                'rating' => 'nullable|numeric',
+                'reviews' => 'nullable|integer',
+                'brand' => 'nullable|string',
+                'discount' => 'nullable|integer',
+                'bgColor' => 'nullable|string',
+                'quantity' => 'required|integer|min:0'
+            ]);
 
-            $validated['product_code'] = 'p' . rand(100, 999);
+            $validated['product_code'] = Product::generateProductCode();
 
             $product = Product::create($validated);
 
@@ -92,14 +92,12 @@ class ProductController extends Controller
                 'message' => 'Product created successfully',
                 'data' => $product
             ], 201);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
                 'errors' => $e->errors()
             ], 422);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -113,7 +111,7 @@ class ProductController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $product = Product::find($id);
+            $product = Product::with('category')->find($id);
 
             if (!$product) {
                 return response()->json([
@@ -122,14 +120,27 @@ class ProductController extends Controller
                 ], 404);
             }
 
-            $product->update($request->all());
+            $validated = $request->validate([
+                'name' => 'sometimes|string',
+                'category_id' => 'sometimes|exists:categories,id',
+                'price' => 'sometimes|numeric',
+                'originalPrice' => 'nullable|numeric',
+                'weight' => 'nullable|string',
+                'rating' => 'nullable|numeric',
+                'reviews' => 'nullable|integer',
+                'brand' => 'nullable|string',
+                'discount' => 'nullable|integer',
+                'bgColor' => 'nullable|string',
+                'quantity' => 'sometimes|integer|min:0'
+            ]);
+
+            $product->update($validated);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Product updated successfully',
                 'data' => $product
             ], 200);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -158,11 +169,70 @@ class ProductController extends Controller
                 'success' => true,
                 'message' => 'Product deleted successfully'
             ], 200);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Product deletion failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getNextproduct_code()
+    {
+        try {
+            $nextcode = Product::generateProductCode();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Next product code fetched',
+                'code' => $nextcode
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate code',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ✅ POST /api/products/:id/reduce-stock
+    public function reduceStock(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'quantity' => 'required|integer|min:1'
+            ]);
+
+            $product = Product::find($id);
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found'
+                ], 404);
+            }
+
+            if ($product->quantity < $request->quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Insufficient stock'
+                ], 400);
+            }
+
+            $product->quantity -= $request->quantity;
+            $product->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stock updated successfully',
+                'data' => $product
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Stock update failed',
                 'error' => $e->getMessage()
             ], 500);
         }
